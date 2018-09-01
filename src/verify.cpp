@@ -98,7 +98,7 @@ code verify_exists(const block_database& blocks, const header& header)
 }
 
 code verify_exists(const transaction_database& transactions,
-    const transaction& tx)
+    transaction& tx)
 {
 #ifndef NDEBUG
     if (!transactions.get(tx.hash()))
@@ -109,7 +109,7 @@ code verify_exists(const transaction_database& transactions,
 }
 
 code verify_missing(const transaction_database& transactions,
-    const transaction& tx)
+    transaction& tx)
 {
 #ifdef NDEBUG
     if (transactions.get(tx.hash()))

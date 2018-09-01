@@ -58,7 +58,7 @@ inpoint_iterator::inpoint_iterator(const const_element& element)
                 deserial.skip(deserial.read_size_little_endian());
             }
 
-            const auto inputs = deserial.read_size_little_endian();
+            auto inputs = deserial.read_size_little_endian();
             inpoints_.resize(inputs);
 
             for (auto input = 0u; input < inputs; ++input)
@@ -98,10 +98,10 @@ bool inpoint_iterator::operator==(const inpoint_iterator& other) const
 {
     // Cannot compare vectors iterators because they are from different vectors.
     // Cannot combine the vectors without querying result in transaction_result.
-    const auto left_terminal = (inpoints_.size() == index_);
-    const auto right_terminal = (other.inpoints_.size() == other.index_);
-    const auto both_terminal = left_terminal && right_terminal;
-    const auto neither_terminal = !left_terminal && !right_terminal;
+    auto left_terminal = (inpoints_.size() == index_);
+    auto right_terminal = (other.inpoints_.size() == other.index_);
+    auto both_terminal = left_terminal && right_terminal;
+    auto neither_terminal = !left_terminal && !right_terminal;
     return both_terminal || (index_ == other.index_ && neither_terminal);
 }
 

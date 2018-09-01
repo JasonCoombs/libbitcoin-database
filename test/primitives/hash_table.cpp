@@ -66,7 +66,7 @@ BOOST_AUTO_TEST_CASE(hash_table__slab__one_element__round_trips)
     };
 
     // Find, read and verify the new element (by key).
-    const auto const_element = table.find(key);
+    auto const_element = table.find(key);
     BOOST_REQUIRE(const_element);
     BOOST_REQUIRE_EQUAL(const_element.link(), link);
     BOOST_REQUIRE_EQUAL(const_element.next(), slab_map::not_found);
