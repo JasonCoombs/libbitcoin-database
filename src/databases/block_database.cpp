@@ -191,7 +191,7 @@ block_result block_database::get(const hash_digest& hash) const
     };
 }
 
-void block_database::get_header_metadata(chain::header& header) const
+void block_database::get_header_metadata(const chain::header& header) const
 {
     const auto result = get(header.hash());
 
@@ -214,7 +214,7 @@ void block_database::get_header_metadata(chain::header& header) const
 // ----------------------------------------------------------------------------
 
 // private
-void block_database::store(chain::header& header, size_t height,
+void block_database::store(const chain::header& header, size_t height,
     uint32_t median_time_past, uint32_t checksum, link_type tx_start,
     size_t tx_count, uint8_t state)
 {
@@ -239,7 +239,7 @@ void block_database::store(chain::header& header, size_t height,
     hash_table_.link(next);
 }
 
-void block_database::store(chain::header& header, size_t height,
+void block_database::store(const chain::header& header, size_t height,
     uint32_t median_time_past)
 {
     static constexpr auto tx_start = 0u;
@@ -252,7 +252,7 @@ void block_database::store(chain::header& header, size_t height,
 }
 
 block_database::link_type block_database::associate(
-    transaction::list& transactions)
+    const transaction::list& transactions)
 {
     if (transactions.empty())
         return 0;
@@ -272,16 +272,16 @@ block_database::link_type block_database::associate(
 // These are used to atomically update metadata.
 
 // Populate transaction references, state is unchanged.
-bool block_database::update(chain::block& block)
+bool block_database::update(const chain::block& block)
 {
     auto element = hash_table_.find(block.hash());
 
     if (!element)
         return false;
 
-    auto txs = block.transactions();
-    auto tx_start = associate(txs);
-    auto tx_count = txs.size();
+    const auto& txs = block.transactions();
+    const auto tx_start = associate(txs);
+    const auto tx_count = txs.size();
 
     BITCOIN_ASSERT(tx_start <= max_uint32);
     BITCOIN_ASSERT(tx_count <= max_uint16);
@@ -433,7 +433,7 @@ bool block_database::index(const hash_digest& hash, size_t height,
     if (!element)
         return false;
 
-    auto updated = index(element, true, candidate);
+    const auto updated = index(element, true, candidate);
     push_index(element.link(), height, manager);
     return true;
 }
@@ -454,7 +454,7 @@ bool block_database::unindex(const hash_digest& hash, size_t height,
     if (!element)
         return false;
 
-    auto original = index(element, false, candidate);
+    const auto original = index(element, false, candidate);
     pop_index(height, manager);
     return true;
 }

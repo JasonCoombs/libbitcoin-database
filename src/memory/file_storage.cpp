@@ -118,11 +118,8 @@ void file_storage::log_mapping() const
 
 void file_storage::log_resizing(size_t size) const
 {
-    const auto this_id = boost::this_thread::get_id();
-
     LOG_DEBUG(LOG_DATABASE)
-        << this_id
-        << " Resizing: " << filename_ << " [" << size << "]";
+        << "Resizing: " << filename_ << " [" << size << "]";
 }
 
 void file_storage::log_flushed() const

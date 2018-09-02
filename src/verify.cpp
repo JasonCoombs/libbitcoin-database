@@ -98,7 +98,7 @@ code verify_exists(const block_database& blocks, const header& header)
 }
 
 code verify_exists(const transaction_database& transactions,
-    transaction& tx)
+    const transaction& tx)
 {
 #ifndef NDEBUG
     if (!transactions.get(tx.hash()))
@@ -109,7 +109,7 @@ code verify_exists(const transaction_database& transactions,
 }
 
 code verify_missing(const transaction_database& transactions,
-    transaction& tx)
+    const transaction& tx)
 {
 #ifdef NDEBUG
     if (transactions.get(tx.hash()))
@@ -119,7 +119,7 @@ code verify_missing(const transaction_database& transactions,
     return error::success;
 }
 
-code verify_push(const block_database& blocks, header& header,
+code verify_push(const block_database& blocks, const header& header,
     size_t height)
 {
 #ifndef NDEBUG
@@ -134,7 +134,7 @@ code verify_push(const block_database& blocks, header& header,
     return error::success;
 }
 
-code verify_push(const block_database& blocks, block& block,
+code verify_push(const block_database& blocks, const block& block,
     size_t height)
 {
 #ifndef NDEBUG

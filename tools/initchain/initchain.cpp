@@ -59,8 +59,8 @@ int main(int argc, char** argv)
     }
 
     // This creates default configuration database only!
-    database::settings configuration;
-    bc::settings bitcoin_configuration(bc::config::settings::mainnet);
+    const database::settings configuration;
+    const bc::settings bitcoin_configuration(bc::config::settings::mainnet);
 
     if (!data_base(configuration).create(bitcoin_configuration.genesis_block))
     {

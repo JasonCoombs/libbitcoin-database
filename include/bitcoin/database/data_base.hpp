@@ -49,7 +49,7 @@ public:
     // ------------------------------------------------------------------------
 
     /// Create and open all databases.
-    bool create(chain::block& genesis);
+    bool create(const chain::block& genesis);
 
     // Expose polymorphic create method from base.
     using store::create;
@@ -67,19 +67,19 @@ public:
     // ------------------------------------------------------------------------
     // These are const to preclude write operations by public callers.
 
-    block_database& blocks() const;
+    const block_database& blocks() const;
 
-    transaction_database& transactions() const;
+    const transaction_database& transactions() const;
 
     /// Invalid if indexes not initialized.
-    address_database& addresses() const;
+    const address_database& addresses() const;
 
     // Node writers.
     // ------------------------------------------------------------------------
 
     // INITCHAIN (genesis)
     /// Push the block through candidacy and confirmation, without indexing.
-    code push(chain::block& block, size_t height=0,
+    code push(const chain::block& block, size_t height=0,
         uint32_t median_time_past=0);
 
     // HEADER ORGANIZER (reorganize)
@@ -90,19 +90,19 @@ public:
 
     // BLOCK ORGANIZER (update)
     /// Update the stored block with txs.
-    code update(chain::block& block, size_t height);
+    code update(const chain::block& block, size_t height);
 
     // BLOCK ORGANIZER (update, invalidate)
     /// Set header validation state and metadata.
-    code invalidate(chain::header& header, const code& error);
+    code invalidate(const chain::header& header, const code& error);
 
     // BLOCK ORGANIZER (candidate)
     /// Mark candidate block, txs and outputs spent by them as candidate.
-    code candidate(chain::block& block);
+    code candidate(const chain::block& block);
 
     // BLOCK ORGANIZER (candidate)
     /// Add payments of transactions of the block to the payment index.
-    code index(chain::block& block);
+    code index(const chain::block& block);
 
     // BLOCK ORGANIZER (reorganize)
     /// Reorganize the block index to the specified fork point.
@@ -112,11 +112,11 @@ public:
 
     // TRANSACTION ORGANIZER (store)
     /// Store unconfirmed tx/payments that was verified with the given forks.
-    code store(chain::transaction& tx, uint32_t forks);
+    code store(const chain::transaction& tx, uint32_t forks);
 
     // TRANSACTION ORGANIZER (store)
     /// Add payments of the transaction to the payment index.
-    code index(chain::transaction& tx);
+    code index(const chain::transaction& tx);
 
 protected:
     void start();
@@ -130,7 +130,7 @@ protected:
         const config::checkpoint& fork_point);
     bool pop_above(header_const_ptr_list_ptr headers,
         const config::checkpoint& fork_point);
-    code push_header(chain::header& header, size_t height,
+    code push_header(const chain::header& header, size_t height,
         uint32_t median_time_past);
     code pop_header(chain::header& out_header, size_t height);
 
@@ -141,7 +141,7 @@ protected:
         const config::checkpoint& fork_point);
     bool pop_above(block_const_ptr_list_ptr headers,
         const config::checkpoint& fork_point);
-    code push_block(chain::block& block, size_t height);
+    code push_block(const chain::block& block, size_t height);
     code pop_block(chain::block& out_block, size_t height);
 
 

@@ -135,7 +135,7 @@ void unspent_outputs::remove(const output_point& point)
     if (disabled())
         return;
 
-    unspent_transaction key{ point };
+    const unspent_transaction key{ point };
 
     // Critical Section
     ///////////////////////////////////////////////////////////////////////////
@@ -175,26 +175,26 @@ bool unspent_outputs::populate(const output_point& point,
 
     ++queries_;
     auto& prevout = point.metadata;
-    unspent_transaction key{ point };
+    const unspent_transaction key{ point };
 
     // Critical Section
     ///////////////////////////////////////////////////////////////////////////
     shared_lock lock(mutex_);
 
     // Find the unspent tx entry.
-    auto tx = unspent_.left.find(key);
+    const auto tx = unspent_.left.find(key);
     if (tx == unspent_.left.end())
         return false;
 
     // Find the output at the specified index for the found unspent tx.
-    auto& transaction = tx->first;
-    auto outputs = transaction.outputs();
-    auto output = outputs->find(point.index());
+    const auto& transaction = tx->first;
+    const auto outputs = transaction.outputs();
+    const auto output = outputs->find(point.index());
     if (output == outputs->end())
         return false;
 
     ++hits_;
-    auto height = transaction.height();
+    const auto height = transaction.height();
 
     // Populate the output metadata.
     prevout.spent = false;
