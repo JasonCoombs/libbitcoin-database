@@ -32,7 +32,7 @@ using namespace bc::database;
 transaction random_tx(size_t fudge)
 {
     static const auto settings = bc::settings(bc::config::settings::mainnet);
-    static const chain::block genesis = settings.genesis_block;
+    static chain::block genesis = settings.genesis_block;
     auto tx = genesis.transactions()[0];
     tx.inputs()[0].previous_output().set_index(fudge);
     tx.metadata.link = fudge;

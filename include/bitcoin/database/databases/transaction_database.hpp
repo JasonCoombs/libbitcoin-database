@@ -77,11 +77,11 @@ public:
     transaction_result get(const hash_digest& hash) const;
 
     /// Populate tx metadata for the given block context.
-    void get_block_metadata(const chain::transaction& tx, uint32_t forks,
+    void get_block_metadata(chain::transaction& tx, uint32_t forks,
         size_t fork_height) const;
 
     /// Populate tx metadata for the given transaction pool context.
-    void get_pool_metadata(const chain::transaction& tx, uint32_t forks) const;
+    void get_pool_metadata(chain::transaction& tx, uint32_t forks) const;
 
     /// Populate output metadata for the specified point and given context.
     bool get_output(const chain::output_point& point, size_t fork_height,
@@ -91,13 +91,13 @@ public:
     // ------------------------------------------------------------------------
 
     /// Store a transaction not associated with a block.
-    bool store(const chain::transaction& tx, uint32_t forks);
+    bool store(chain::transaction& tx, uint32_t forks);
 
     /// Store a set of transactions associated with an unconfirmed block.
-    bool store(const chain::transaction::list& transactions);
+    bool store(chain::transaction::list& transactions);
 
     /// Store a set of transactions associated with a confirmed block.
-    bool store(const chain::transaction::list& transactions, size_t height,
+    bool store(chain::transaction::list& transactions, size_t height,
         uint32_t median_time_past);
 
     /// Mark outputs spent by the candidate tx.
@@ -107,7 +107,7 @@ public:
     bool uncandidate(file_offset link);
 
     /// Promote the set of transactions associated with a block to confirmed.
-    bool confirm(const chain::transaction::list& transactions, size_t height,
+    bool confirm(chain::transaction::list& transactions, size_t height,
         uint32_t median_time_past);
 
     /// Promote the transaction to confirmed.
@@ -126,7 +126,7 @@ private:
 
     // Store a transaction.
     //-------------------------------------------------------------------------
-    bool storize(const chain::transaction& tx, size_t height,
+    bool storize(chain::transaction& tx, size_t height,
         uint32_t median_time_past, size_t position);
 
     // Update the candidate state of the tx.
