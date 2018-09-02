@@ -335,13 +335,13 @@ bool transaction_database::candidate(file_offset link)
 // private
 bool transaction_database::candidate(file_offset link, bool positive)
 {
-    const auto result = get(link);
+    auto result = get(link);
 
     if (!result || !candidize(link, positive))
         return false;
 
     // Spend or unspend the candidate tx's previous outputs.
-    for (const auto inpoint: result)
+    for (auto inpoint: result)
         if (!candidate_spend(inpoint, positive))
             return false;
 
@@ -447,13 +447,13 @@ bool transaction_database::confirm(transaction::list& transactions,
 bool transaction_database::confirm(file_offset link, size_t height,
     uint32_t median_time_past, size_t position)
 {
-    const auto result = get(link);
+    auto result = get(link);
 
     if (!result)
         return false;
 
     // Spend or unspend the tx's previous outputs.
-    for (const auto inpoint: result)
+    for (auto inpoint: result)
         if (!confirmed_spend(inpoint, height))
             return false;
 

@@ -119,7 +119,7 @@ code verify_missing(const transaction_database& transactions,
     return error::success;
 }
 
-code verify_push(const block_database& blocks, const header& header,
+code verify_push(const block_database& blocks, header& header,
     size_t height)
 {
 #ifndef NDEBUG
@@ -134,7 +134,7 @@ code verify_push(const block_database& blocks, const header& header,
     return error::success;
 }
 
-code verify_push(const block_database& blocks, const block& block,
+code verify_push(const block_database& blocks, block& block,
     size_t height)
 {
 #ifndef NDEBUG
