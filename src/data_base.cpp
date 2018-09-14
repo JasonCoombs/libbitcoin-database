@@ -79,7 +79,7 @@ data_base::~data_base()
 // ----------------------------------------------------------------------------
 
 // Throws if there is insufficient disk space, not idempotent.
-bool data_base::create(const block& genesis)
+bool data_base::create( chain::block& genesis)
 {
     ///////////////////////////////////////////////////////////////////////////
     // Lock exclusive file access.
@@ -105,6 +105,11 @@ bool data_base::create(const block& genesis)
 
     closed_ = false;
     return created;
+}
+
+bool data_base::create( config::block& genesis)
+{
+    return create(*(chain::block *)&(genesis)); // cast config::block to chain::block
 }
 
 // Must be called before performing queries, not idempotent.
@@ -204,19 +209,19 @@ bool data_base::close()
 // ----------------------------------------------------------------------------
 // public
 
-const block_database& data_base::blocks() const
+ block_database& data_base::blocks() const
 {
     return *blocks_;
 }
 
-const transaction_database& data_base::transactions() const
+ transaction_database& data_base::transactions() const
 {
     return *transactions_;
 }
 
 // TODO: rename addresses to payments generally.
 // Invalid if indexes not initialized.
-const address_database& data_base::addresses() const
+ address_database& data_base::addresses() const
 {
     return *addresses_;
 }
@@ -224,7 +229,7 @@ const address_database& data_base::addresses() const
 // Public writers.
 // ----------------------------------------------------------------------------
 
-code data_base::index(const transaction& tx)
+code data_base::index( transaction& tx)
 {
     code ec;
 
@@ -251,7 +256,7 @@ code data_base::index(const transaction& tx)
     ///////////////////////////////////////////////////////////////////////////
 }
 
-code data_base::index(const block& block)
+code data_base::index( block& block)
 {
     code ec;
     if (!settings_.index_addresses)
@@ -269,7 +274,7 @@ code data_base::index(const block& block)
         return error::store_lock_failure;
 
     // Existence check prevents duplicated indexing.
-    for (const auto& tx: block.transactions())
+    for ( auto tx: block.transactions())
         if (!tx.metadata.existed)
             addresses_->index(tx);
 
@@ -280,7 +285,7 @@ code data_base::index(const block& block)
     ///////////////////////////////////////////////////////////////////////////
 }
 
-code data_base::store(const transaction& tx, uint32_t forks)
+code data_base::store( transaction& tx, uint32_t forks)
 {
     code ec;
 
@@ -325,7 +330,7 @@ code data_base::reorganize(const config::checkpoint& fork_point,
 
 // Add missing transactions for an existing block header.
 // This allows parallel write when write flushing is not enabled.
-code data_base::update(const chain::block& block, size_t height)
+code data_base::update( chain::block& block, size_t height)
 {
     code ec;
 
@@ -359,7 +364,7 @@ code data_base::update(const chain::block& block, size_t height)
 }
 
 // Promote unvalidated block to valid|invalid based on error value.
-code data_base::invalidate(const header& header, const code& error)
+code data_base::invalidate( header& header, const code& error)
 {
     code ec;
 
@@ -385,7 +390,7 @@ code data_base::invalidate(const header& header, const code& error)
 }
 
 // Mark candidate as valid, and txs and outputs spent by them as candidate.
-code data_base::candidate(const block& block)
+code data_base::candidate( block& block)
 {
     code ec;
 
@@ -436,7 +441,7 @@ code data_base::reorganize(const config::checkpoint& fork_point,
 
 // TODO: index payments.
 // Store, update, validate and confirm the presumed valid block.
-code data_base::push(const block& block, size_t height,
+code data_base::push( block& block, size_t height,
     uint32_t median_time_past)
 {
     // Critical Section
@@ -494,7 +499,7 @@ bool data_base::push_all(header_const_ptr_list_const_ptr headers,
     // Push all headers onto the fork point.
     for (size_t index = 0; index < headers->size(); ++index)
     {
-        const auto& header = *((*headers)[index]);
+         auto& header = *((*headers)[index]);
         const auto median_time_past = header.metadata.median_time_past;
         if ((ec = push_header(header, first_height + index, median_time_past)))
             return false;
@@ -536,7 +541,7 @@ bool data_base::pop_above(header_const_ptr_list_ptr headers,
 
 // Expects header is next candidate and metadata.exists is populated.
 // Median time past metadata is populated when the block is validated.
-code data_base::push_header(const chain::header& header, size_t height,
+code data_base::push_header( chain::header& header, size_t height,
     uint32_t median_time_past)
 {
     code ec;
@@ -616,7 +621,7 @@ bool data_base::push_all(block_const_ptr_list_const_ptr blocks,
     // Push all blocks onto the fork point.
     for (size_t index = 0; index < blocks->size(); ++index)
     {
-        const auto& block = *((*blocks)[index]);
+         auto& block = *((*blocks)[index]);
         if ((ec = push_block(block, first_height + index)))
             return false;
     }
@@ -655,7 +660,7 @@ bool data_base::pop_above(block_const_ptr_list_ptr blocks,
     return true;
 }
 
-code data_base::push_block(const block& block, size_t height)
+code data_base::push_block( block& block, size_t height)
 {
     code ec;
     BITCOIN_ASSERT(block.header().metadata.state);

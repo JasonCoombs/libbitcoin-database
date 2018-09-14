@@ -146,7 +146,7 @@ transaction_result transaction_database::get(const hash_digest& hash) const
     return { hash_table_.find(hash), metadata_mutex_ };
 }
 
-void transaction_database::get_block_metadata(const chain::transaction& tx,
+void transaction_database::get_block_metadata( chain::transaction& tx,
     uint32_t forks, size_t fork_height) const
 {
     const auto result = get(tx.hash());
@@ -182,7 +182,7 @@ void transaction_database::get_block_metadata(const chain::transaction& tx,
     tx.metadata.verified = !tx.metadata.confirmed && height == forks;
 }
 
-void transaction_database::get_pool_metadata(const chain::transaction& tx,
+void transaction_database::get_pool_metadata( chain::transaction& tx,
     uint32_t forks) const
 {
     const auto result = get(tx.hash());
@@ -253,15 +253,15 @@ bool transaction_database::get_output(const output_point& point,
 // ----------------------------------------------------------------------------
 
 // Store new unconfirmed tx and set tx link metadata in any case.
-bool transaction_database::store(const chain::transaction& tx, uint32_t forks)
+bool transaction_database::store( chain::transaction& tx, uint32_t forks)
 {
     return storize(tx, forks, no_time, transaction_result::unconfirmed);
 }
 
 // Store each new tx of the unconfirmed block and set tx link metadata for all.
-bool transaction_database::store(const transaction::list& transactions)
+bool transaction_database::store( transaction::list& transactions)
 {
-    for (const auto& tx: transactions)
+    for ( auto& tx: transactions)
         if (!storize(tx, rule_fork::unverified, no_time,
             transaction_result::unconfirmed))
             return false;
@@ -270,11 +270,11 @@ bool transaction_database::store(const transaction::list& transactions)
 }
 
 // Store each new tx of the confirmed block and set tx link metadata for all.
-bool transaction_database::store(const chain::transaction::list& transactions,
+bool transaction_database::store( chain::transaction::list& transactions,
     size_t height, uint32_t median_time_past)
 {
     size_t position = 0;
-    for (const auto& tx: transactions)
+    for ( auto& tx: transactions)
         if (!storize(tx, height, median_time_past, position++))
             return false;
 
@@ -282,7 +282,7 @@ bool transaction_database::store(const chain::transaction::list& transactions,
 }
 
 // private
-bool transaction_database::storize(const chain::transaction& tx, size_t height,
+bool transaction_database::storize( chain::transaction& tx, size_t height,
     uint32_t median_time_past, size_t position)
 {
     BITCOIN_ASSERT(height <= max_uint32);
@@ -335,13 +335,13 @@ bool transaction_database::candidate(file_offset link)
 // private
 bool transaction_database::candidate(file_offset link, bool positive)
 {
-    const auto result = get(link);
+     auto result = get(link);
 
     if (!result || !candidize(link, positive))
         return false;
 
     // Spend or unspend the candidate tx's previous outputs.
-    for (const auto inpoint: result)
+    for ( auto inpoint: result)
         if (!candidate_spend(inpoint, positive))
             return false;
 
@@ -433,7 +433,7 @@ bool transaction_database::candidize(link_type link, bool candidate)
 // Confirm/Unconfirm.
 // ----------------------------------------------------------------------------
 
-bool transaction_database::confirm(const transaction::list& transactions,
+bool transaction_database::confirm( transaction::list& transactions,
     size_t height, uint32_t median_time_past)
 {
     uint32_t position = 0;
@@ -447,13 +447,13 @@ bool transaction_database::confirm(const transaction::list& transactions,
 bool transaction_database::confirm(file_offset link, size_t height,
     uint32_t median_time_past, size_t position)
 {
-    const auto result = get(link);
+     auto result = get(link);
 
     if (!result)
         return false;
 
     // Spend or unspend the tx's previous outputs.
-    for (const auto inpoint: result)
+    for ( auto inpoint: result)
         if (!confirmed_spend(inpoint, height))
             return false;
 
@@ -482,7 +482,7 @@ bool transaction_database::confirmed_spend(const output_point& point,
     if (point.is_null())
         return true;
 
-    const auto unspend = (spender_height & output::validation::unspent) != 0;
+     auto unspend = (spender_height & output::validation::unspent) != 0;
 
     // When unspending could restore the spend to the cache, but not worth it.
     if (unspend && !cache_.disabled())

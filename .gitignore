@@ -4,11 +4,13 @@
 *.lo
 *.o
 *.pyc
+*.pc
 Makefile
 Makefile.in
 libbitcoin-blockchain.pc
 
 obj
+diff.*
 .*.swp
 *~
 /*.kdev4

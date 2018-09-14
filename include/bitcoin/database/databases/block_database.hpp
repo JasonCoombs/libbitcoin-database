@@ -86,11 +86,11 @@ public:
     // ------------------------------------------------------------------------
 
     /// Store header, validated at height, candidate, pending (but unindexed).
-    void store(const chain::header& header, size_t height,
+    void store( chain::header& header, size_t height,
         uint32_t median_time_past);
 
     /// Populate pooled block transaction references, state is unchanged.
-    bool update(const chain::block& block);
+    bool update( chain::block& block);
 
     /// Promote pooled block to valid|invalid and set code.
     bool validate(const hash_digest& hash, const code& error);
@@ -111,8 +111,8 @@ private:
     typedef message::compact_block::short_id_list short_id_list;
 
     uint8_t index(const_element& element, bool positive, bool candidate);
-    link_type associate(const chain::transaction::list& transactions);
-    void store(const chain::header& header, size_t height,
+    link_type associate( chain::transaction::list& transactions);
+    void store( chain::header& header, size_t height,
         uint32_t median_time_past, uint32_t checksum, link_type tx_start,
         size_t tx_count, uint8_t status);
 

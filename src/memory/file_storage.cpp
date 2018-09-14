@@ -118,7 +118,9 @@ void file_storage::log_mapping() const
 
 void file_storage::log_resizing(size_t size) const
 {
+    const auto this_id = boost::this_thread::get_id();
     LOG_DEBUG(LOG_DATABASE)
+        << this_id
         << "Resizing: " << filename_ << " [" << size << "]";
 }
 
@@ -156,6 +158,11 @@ file_storage::file_storage(const path& filename, size_t expansion)
     file_size_(file_size(file_handle_)),
     logical_size_(file_size_)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_DEBUG(LOG_DATABASE)
+    << this_id
+    << " file_storage() "
+    << filename;
 }
 
 // Database threads must be joined before close is called (or destruct).
@@ -173,16 +180,47 @@ bool file_storage::open()
 {
     // Critical Section
     ///////////////////////////////////////////////////////////////////////////
+    const auto this_id = boost::this_thread::get_id();
+    LOG_DEBUG(LOG_DATABASE)
+    << this_id
+    << " file_storage::open() calling lock_upgrade() for mutex_ of "
+    << &mutex_;
+
     mutex_.lock_upgrade();
+
+    LOG_DEBUG(LOG_DATABASE)
+    << this_id
+    << " file_storage::open() called lock_upgrade() successfully for mutex_ of "
+    << &mutex_;
 
     if (!closed_)
     {
+        LOG_DEBUG(LOG_DATABASE)
+        << this_id
+        << " file_storage::open() calling unlock_upgrade() for mutex_ of "
+        << &mutex_;
+
         mutex_.unlock_upgrade();
+
+        LOG_DEBUG(LOG_DATABASE)
+        << this_id
+        << " file_storage::open() called unlock_upgrade() successfully for mutex_ of "
+        << &mutex_;
         //---------------------------------------------------------------------
         return false;
     }
 
+    LOG_DEBUG(LOG_DATABASE)
+    << this_id
+    << " file_storage::open() calling unlock_upgrade_and_lock() for mutex_ of "
+    << &mutex_;
+
     mutex_.unlock_upgrade_and_lock();
+
+    LOG_DEBUG(LOG_DATABASE)
+    << this_id
+    << " file_storage::open() called unlock_upgrade_and_lock() successfully for mutex_ of "
+    << &mutex_;
     //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     std::string error_name;
 
@@ -194,7 +232,17 @@ bool file_storage::open()
     else
         closed_ = false;
 
+    LOG_DEBUG(LOG_DATABASE)
+    << this_id
+    << " file_storage::open() calling unlock() for mutex_ of "
+    << &mutex_;
+
     mutex_.unlock();
+
+    LOG_DEBUG(LOG_DATABASE)
+    << this_id
+    << " file_storage::open() called unlock() successfully for mutex_ of "
+    << &mutex_;
     ///////////////////////////////////////////////////////////////////////////
 
     // Keep logging out of the critical section.
@@ -310,14 +358,18 @@ memory_ptr file_storage::access()
 {
     // Critical Section
     ///////////////////////////////////////////////////////////////////////////
+    // accessor constructor calls mutex_.lock_upgrade();
     auto memory = std::make_shared<accessor>(mutex_);
 
+    // assign() calls mutex_.unlock_upgrade_and_lock_shared();
     memory->assign(data_);
 
     // The store should only have been closed after all threads terminated.
     if (closed_)
         throw std::runtime_error("Access failure, store closed.");
 
+    // Always return in shared lock state. (see above, assign() sets this state)
+    // The critical section does not end until the memory shared pointer is freed.
     return memory;
 }
 
@@ -346,6 +398,7 @@ memory_ptr file_storage::reserve(size_t size, size_t expansion)
 
     // Critical Section
     ///////////////////////////////////////////////////////////////////////////
+    // accessor constructor calls mutex_.lock_upgrade();
     auto memory = std::make_shared<accessor>(mutex_);
 
     // The store should only have been closed after all threads terminated.
@@ -377,10 +430,12 @@ memory_ptr file_storage::reserve(size_t size, size_t expansion)
     }
 
     logical_size_ = size;
+    
+    // assign() calls mutex_.unlock_upgrade_and_lock_shared();
     memory->assign(data_);
 
-    // Always return in shared lock state.
-    // The critical section does not end until this shared pointer is freed.
+    // Always return in shared lock state. (see above, assign() sets this state)
+    // The critical section does not end until the memory shared pointer is freed.
     return memory;
     ///////////////////////////////////////////////////////////////////////////
 }

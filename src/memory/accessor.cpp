@@ -31,7 +31,18 @@ accessor::accessor(upgrade_mutex& mutex)
 {
     ///////////////////////////////////////////////////////////////////////////
     // Begin Critical Section
+//    const auto this_id = boost::this_thread::get_id();
+//    LOG_DEBUG(LOG_DATABASE)
+//    << this_id
+//    << " accessor::accessor() calling lock_upgrade() for mutex_ of "
+//    << &mutex_;
+
     mutex_.lock_upgrade();
+
+//    LOG_DEBUG(LOG_DATABASE)
+//    << this_id
+//    << " accessor::accessor() called lock_upgrade() successfully for mutex_ of "
+//    << &mutex_;
 }
 
 uint8_t* accessor::buffer()
@@ -43,7 +54,17 @@ uint8_t* accessor::buffer()
 void accessor::assign(uint8_t* data)
 {
     //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//    const auto this_id = boost::this_thread::get_id();
+//    LOG_DEBUG(LOG_DATABASE)
+//    << this_id
+//    << " accessor::assign() calling unlock_upgrade_and_lock_shared() for mutex_ of "
+//    << &mutex_;
     mutex_.unlock_upgrade_and_lock_shared();
+//    LOG_DEBUG(LOG_DATABASE)
+//    << this_id
+//    << " accessor::assign() called unlock_upgrade_and_lock_shared() for mutex_ of "
+//    << &mutex_;
+
     data_ = data;
 }
 
@@ -57,7 +78,30 @@ void accessor::increment(size_t value)
 
 accessor::~accessor()
 {
+//    const auto this_id = boost::this_thread::get_id();
+/*    LOG_DEBUG(LOG_DATABASE)
+    << this_id
+    << " accessor::~accessor() calling unlock_upgrade_and_lock_shared() for mutex_ of "
+    << &mutex_;
+
+    mutex_.unlock_upgrade_and_lock_shared();
+
+    LOG_DEBUG(LOG_DATABASE)
+    << this_id
+    << " accessor::~accessor() called unlock_upgrade_and_lock_shared() for mutex_ of "
+    << &mutex_;
+*/
+//    LOG_DEBUG(LOG_DATABASE)
+//    << this_id
+//    << " accessor::~accessor() calling unlock_shared() for mutex_ of "
+//    << &mutex_;
+
     mutex_.unlock_shared();
+
+//    LOG_DEBUG(LOG_DATABASE)
+//    << this_id
+//    << " accessor::~accessor() called unlock_shared() successfully for mutex_ of "
+//    << &mutex_;
     // End Critical Section
     ///////////////////////////////////////////////////////////////////////////
 }

@@ -38,18 +38,18 @@ code verify_exists(const transaction_database& transactions,
     const chain::transaction& tx);
 
 code verify_missing(const transaction_database& transactions,
-    const chain::transaction& tx);
+     chain::transaction& tx);
 
-code verify_push(const block_database& blocks, const chain::header& header,
+code verify_push(const block_database& blocks,  chain::header& header,
     size_t height);
 
-code verify_push(const block_database& blocks, const chain::block& block,
+code verify_push(const block_database& blocks,  chain::block& block,
     size_t height);
 
-code verify_update(const block_database& blocks, const chain::block& block,
+code verify_update(const block_database& blocks,  chain::block& block,
     size_t height);
 
-code verify_not_failed(const block_database& blocks, const chain::block& block);
+code verify_not_failed(const block_database& blocks,  chain::block& block);
 
 } // namespace database
 } // namespace libbitcoin
