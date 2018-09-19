@@ -7,7 +7,7 @@
 *.pc
 Makefile
 Makefile.in
-libbitcoin-blockchain.pc
+libbitcoin-database.pc
 
 obj
 diff.*
