@@ -26,9 +26,7 @@ namespace database {
 using namespace boost::filesystem;
 
 settings::settings()
-  : directory("blockchain"),
-  
-    index_addresses(true),
+  : index_addresses(true),
     flush_writes(false),
     file_growth_rate(5),
 
@@ -47,6 +45,7 @@ settings::settings(config::settings context)
     {
         case config::settings::mainnet:
         {
+            directory = "blockchain-node";
             block_table_buckets = 650000;
             transaction_table_buckets = 110000000;
             address_table_buckets = 107000000;
@@ -55,6 +54,7 @@ settings::settings(config::settings context)
 
         case config::settings::testnet:
         {
+            directory = "testnet-blockchain-node";
             // TODO: optimize for testnet.
             block_table_buckets = 650000;
             transaction_table_buckets = 110000000;
@@ -64,6 +64,36 @@ settings::settings(config::settings context)
 
         case config::settings::regtest:
         {
+            directory = "regtest-blockchain-node";
+            // TODO: optimize for regtest.
+            block_table_buckets = 650000;
+            transaction_table_buckets = 110000000;
+            address_table_buckets = 107000000;
+            break;
+        }
+
+        case config::settings::mainnet_server:
+        {
+            directory = "blockchain-server";
+            block_table_buckets = 650000;
+            transaction_table_buckets = 110000000;
+            address_table_buckets = 107000000;
+            break;
+        }
+            
+        case config::settings::testnet_server:
+        {
+            directory = "testnet-blockchain-server";
+            // TODO: optimize for testnet.
+            block_table_buckets = 650000;
+            transaction_table_buckets = 110000000;
+            address_table_buckets = 107000000;
+            break;
+        }
+            
+        case config::settings::regtest_server:
+        {
+            directory = "regtest-blockchain-server";
             // TODO: optimize for regtest.
             block_table_buckets = 650000;
             transaction_table_buckets = 110000000;
@@ -74,6 +104,7 @@ settings::settings(config::settings context)
         default:
         case config::settings::none:
         {
+            directory = "blockchain";
         }
     }
 }
