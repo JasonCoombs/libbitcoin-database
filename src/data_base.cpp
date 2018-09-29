@@ -63,8 +63,11 @@ data_base::data_base(const settings& settings)
     database::store(settings.directory, settings.index_addresses,
         settings.flush_writes)
 {
+    const auto this_id = boost::this_thread::get_id();
+
     LOG_DEBUG(LOG_DATABASE)
-        << "Buckets: "
+        << this_id
+        << " Buckets: "
         << "block [" << settings.block_table_buckets << "], "
         << "transaction [" << settings.transaction_table_buckets << "], "
         << "address [" << settings.address_table_buckets << "]";
@@ -72,6 +75,11 @@ data_base::data_base(const settings& settings)
 
 data_base::~data_base()
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::~data_base() calling close()";
+
     close();
 }
 
@@ -81,6 +89,11 @@ data_base::~data_base()
 // Throws if there is insufficient disk space, not idempotent.
 bool data_base::create( chain::block& genesis)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::create(chain::block& genesis) called.";
+
     ///////////////////////////////////////////////////////////////////////////
     // Lock exclusive file access.
     if (!store::open())
@@ -93,12 +106,12 @@ bool data_base::create( chain::block& genesis)
     start();
 
     // These leave the databases open.
-    auto created = blocks_->create() && transactions_->create();
+    bool created = blocks_->create() && transactions_->create();
 
     if (settings_.index_addresses)
-        created &= addresses_->create();
+        created = created && addresses_->create();
 
-    created &= push(genesis) == error::success;
+    created = created && push(genesis) == error::success;
 
     if (!created)
         return false;
@@ -109,6 +122,11 @@ bool data_base::create( chain::block& genesis)
 
 bool data_base::create( config::block& genesis)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::create(config::block& genesis) called.";
+
     return create(*(chain::block *)&(genesis)); // cast config::block to chain::block
 }
 
@@ -116,6 +134,11 @@ bool data_base::create( config::block& genesis)
 // May be called after stop and/or after close in order to reopen.
 bool data_base::open()
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::open() called.";
+
     ///////////////////////////////////////////////////////////////////////////
     // Lock exclusive file access and conditionally the global flush lock.
     if (!store::open())
@@ -123,10 +146,10 @@ bool data_base::open()
 
     start();
 
-    auto opened = blocks_->open() && transactions_->open();
+    bool opened = blocks_->open() && transactions_->open();
 
     if (settings_.index_addresses)
-        opened &= addresses_->open();
+        opened = opened && addresses_->open();
 
     if (!opened)
         return false;
@@ -138,6 +161,11 @@ bool data_base::open()
 // protected
 void data_base::start()
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::start() called.";
+
     blocks_ = std::make_shared<block_database>(block_table, candidate_index,
         confirmed_index, transaction_index, settings_.block_table_buckets,
         settings_.file_growth_rate);
@@ -157,6 +185,11 @@ void data_base::start()
 // protected
 void data_base::commit()
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::commit() called.";
+
     if (settings_.index_addresses)
         addresses_->commit();
 
@@ -167,6 +200,11 @@ void data_base::commit()
 // protected
 bool data_base::flush() const
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_DEBUG(LOG_DATABASE)
+    << this_id
+    << " data_base::flush() calling blocks_->flush() transactions_->flush()";
+
     // Avoid a race between flush and close whereby flush is skipped because
     // close is true and therefore the flush lock file is deleted before close
     // fails. This would leave the database corrupted and undetected. The flush
@@ -174,13 +212,20 @@ bool data_base::flush() const
     ////if (closed_)
     ////    return true;
 
-    auto flushed = blocks_->flush() && transactions_->flush();
+    bool flushed = blocks_->flush() && transactions_->flush();
 
     if (settings_.index_addresses)
-        flushed &= addresses_->flush();
+    {
+        LOG_DEBUG(LOG_DATABASE)
+        << this_id
+        << " data_base::flush() and calling addresses_->flush()";
+
+        flushed = flushed && addresses_->flush();
+    }
 
     LOG_DEBUG(LOG_DATABASE)
-        << "Write flushed to disk: "
+        << this_id
+        << " data_base::flush() flushed to disk: "
         << code(flushed ? error::success : error::operation_failed).message();
 
     return flushed;
@@ -190,15 +235,20 @@ bool data_base::flush() const
 // Optional as the database will close on destruct.
 bool data_base::close()
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::close() called.";
+
     if (closed_)
         return true;
 
     closed_ = true;
 
-    auto closed = blocks_->close() && transactions_->close();
+    bool closed = blocks_->close() && transactions_->close();
 
     if (settings_.index_addresses)
-        closed &= addresses_->close();
+        closed = closed && addresses_->close();
 
     return closed && store::close();
     // Unlock exclusive file access and conditionally the global flush lock.
@@ -231,6 +281,11 @@ bool data_base::close()
 
 code data_base::index( transaction& tx)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::index(tx) called.";
+
     code ec;
 
     // Existence check prevents duplicated indexing.
@@ -239,40 +294,72 @@ code data_base::index( transaction& tx)
 
     // Critical Section
     ///////////////////////////////////////////////////////////////////////////
-    conditional_lock lock(flush_each_write());
+    unique_lock lock(write_mutex_);
 
     if ((ec = verify_exists(*transactions_, tx)))
         return ec;
 
     //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    if (!begin_write())
-        return error::store_lock_failure;
+    conditional_lock flushlock(flush_each_write(), &flush_lock_mutex_);
 
+    if (!begin_write())
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::index begin_write error::store_lock_failure";
+
+        return error::store_lock_failure;
+    }
+    
     addresses_->index(tx);
     addresses_->commit();
 
-    return end_write() ? error::success : error::store_lock_failure;
+    if (end_write())
+    {
+        return error::success;
+    }
+    else
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::index end_write error::store_lock_failure";
+        return error::store_lock_failure;
+    }
+
     //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     ///////////////////////////////////////////////////////////////////////////
 }
 
 code data_base::index( block& block)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::index(block) called.";
+
     code ec;
     if (!settings_.index_addresses)
         return ec;
 
     // Critical Section
     ///////////////////////////////////////////////////////////////////////////
-    conditional_lock lock(flush_each_write());
-
+    unique_lock lock(write_mutex_);
+    
     if ((ec = verify_exists(*blocks_, block.header())))
         return ec;
 
     //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    if (!begin_write())
-        return error::store_lock_failure;
+    conditional_lock flushlock(flush_each_write(), &flush_lock_mutex_);
 
+    if (!begin_write())
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::index(block) begin_write error::store_lock_failure";
+
+        return error::store_lock_failure;
+    }
+    
     // Existence check prevents duplicated indexing.
     for ( auto tx: block.transactions())
         if (!tx.metadata.existed)
@@ -280,36 +367,79 @@ code data_base::index( block& block)
 
     addresses_->commit();
 
-    return end_write() ? error::success : error::store_lock_failure;
+    if (end_write())
+    {
+        return error::success;
+    }
+    else
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::index(block) end_write error::store_lock_failure";
+
+        return error::store_lock_failure;
+    }
     //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     ///////////////////////////////////////////////////////////////////////////
 }
 
 code data_base::store( transaction& tx, uint32_t forks)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::store called. tx: " << &tx;
+
     code ec;
 
     // Critical Section
     ///////////////////////////////////////////////////////////////////////////
-    conditional_lock lock(flush_each_write());
-
+    unique_lock lock(write_mutex_);
+    
     // Returns error::duplicate_transaction if tx with same hash exists.
     if ((ec = verify_missing(*transactions_, tx)))
         return ec;
 
     //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    if (!begin_write())
-        return error::store_lock_failure;
+    conditional_lock flushlock(flush_each_write(), &flush_lock_mutex_);
 
+    if (!begin_write())
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::store begin_write error::store_lock_failure";
+        
+        return error::store_lock_failure;
+    }
+    
     // Store the transaction if missing and always set tx link metadata.
     if (!transactions_->store(tx, forks))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::store store end_write error::store_lock_failure";
+        }
         return error::operation_failed;
+    }
 
     // TODO: add the tx to unspent transaction cache as unconfirmed.
 
     transactions_->commit();
 
-    return end_write() ? error::success : error::store_lock_failure;
+    if (end_write())
+    {
+        return error::success;
+    }
+    else
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::index(block) end_write error::store_lock_failure";
+        
+        return error::store_lock_failure;
+    }
     //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     ///////////////////////////////////////////////////////////////////////////
 }
@@ -318,6 +448,12 @@ code data_base::reorganize(const config::checkpoint& fork_point,
     header_const_ptr_list_const_ptr incoming,
     header_const_ptr_list_ptr outgoing)
 {
+    const auto this_id = boost::this_thread::get_id();
+
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::reorganize() called.";
+
     if (fork_point.height() > max_size_t - incoming->size())
         return error::operation_failed;
 
@@ -333,32 +469,83 @@ code data_base::reorganize(const config::checkpoint& fork_point,
 code data_base::update( chain::block& block, size_t height)
 {
     code ec;
+    const auto this_id = boost::this_thread::get_id();
+
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::update() called. instantiating conditional_lock lock()";
 
     // Critical Section
     ///////////////////////////////////////////////////////////////////////////
-    conditional_lock lock(flush_each_write());
+    unique_lock lock(write_mutex_);
+    
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::update() conditional_lock lock() instantiated successfully";
 
     if ((ec = verify_update(*blocks_, block, height)))
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " error data_base::update() verify_update()"
+        << " block height: " << height
+        << " error_code: " << ec << ec.message();
+        
         return ec;
+    }
 
     // TODO: This could be skipped when stored header's tx count is non-zero.
 
     // Conditional write mutex preserves write flushing by preventing overlap.
     //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    if (!begin_write())
-        return error::store_lock_failure;
+    conditional_lock flushlock(flush_each_write(), &flush_lock_mutex_);
 
+    if (!begin_write())
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " error data_base::update() begin_write() error_code: error::store_lock_failure";
+        return error::store_lock_failure;
+    }
+    
     // Store the missing transactions and set tx link metadata for all.
     if (!transactions_->store(block.transactions()))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::update store end_write error::store_lock_failure";
+        }
         return error::operation_failed;
-
+    }
+    
     // Update the block's transaction associations (not its state).
     if (!blocks_->update(block))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::update update end_write error::store_lock_failure";
+        }
         return error::operation_failed;
+    }
 
     commit();
 
-    return end_write() ? error::success : error::store_lock_failure;
+    if (end_write())
+    {
+        return error::success;
+    }
+    else
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::update() end_write error::store_lock_failure";
+        
+        return error::store_lock_failure;
+    }
     //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     ///////////////////////////////////////////////////////////////////////////
 }
@@ -366,38 +553,75 @@ code data_base::update( chain::block& block, size_t height)
 // Promote unvalidated block to valid|invalid based on error value.
 code data_base::invalidate( header& header, const code& error)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::invalidate() called. instantiating conditional_lock";
+
     code ec;
 
     // Critical Section
     ///////////////////////////////////////////////////////////////////////////
-    conditional_lock lock(flush_each_write());
-
+    unique_lock lock(write_mutex_);
+    
     if ((ec = verify_exists(*blocks_, header)))
         return ec;
 
     //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+    conditional_lock flushlock(flush_each_write(), &flush_lock_mutex_);
+
     if (!begin_write())
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::invalidate begin_write error::store_lock_failure";
+
         return error::store_lock_failure;
-
+    }
+    
     if (!blocks_->validate(header.hash(), error))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::invalidate validate end_write error::store_lock_failure";
+        }
         return error::operation_failed;
-
+    }
+    
     header.metadata.error = error;
     header.metadata.validated = true;
 
-    return end_write() ? error::success : error::store_lock_failure;
+    if (end_write())
+    {
+        return error::success;
+    }
+    else
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::invalidate() end_write error::store_lock_failure";
+        
+        return error::store_lock_failure;
+    }
     ///////////////////////////////////////////////////////////////////////////
 }
 
 // Mark candidate as valid, and txs and outputs spent by them as candidate.
 code data_base::candidate( block& block)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::candidate() called";
+
     code ec;
 
     // Critical Section
     ///////////////////////////////////////////////////////////////////////////
-    conditional_lock lock(flush_each_write());
-
+    unique_lock lock(write_mutex_);
+    
     if ((ec = verify_not_failed(*blocks_, block)))
         return ec;
 
@@ -405,22 +629,57 @@ code data_base::candidate( block& block)
     BITCOIN_ASSERT(!header.metadata.error);
 
     //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    if (!begin_write())
-        return error::store_lock_failure;
+    conditional_lock flushlock(flush_each_write(), &flush_lock_mutex_);
 
+    if (!begin_write())
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::candidate begin_write error::store_lock_failure";
+        
+        return error::store_lock_failure;
+    }
+    
     // Set candidate validation state to valid.
     if (!blocks_->validate(header.hash(), error::success))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::candidate validate end_write error::store_lock_failure";
+        }
         return error::operation_failed;
-
+    }
+    
     // Mark candidate block txs and outputs spent by them as candidate.
     for (const auto& tx: block.transactions())
         if (!transactions_->candidate(tx.metadata.link))
+        {
+            if (!end_write())
+            {
+                LOG_VERBOSE(LOG_DATABASE)
+                << this_id
+                << " data_base::candidate candidate end_write error::store_lock_failure";
+            }
             return error::operation_failed;
+        }
 
     header.metadata.error = error::success;
     header.metadata.validated = true;
 
-    return end_write() ? error::success : error::store_lock_failure;
+    if (end_write())
+    {
+        return error::success;
+    }
+    else
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::candidate end_write error::store_lock_failure";
+        
+        return error::store_lock_failure;
+    }
     ///////////////////////////////////////////////////////////////////////////
 }
 
@@ -429,6 +688,11 @@ code data_base::reorganize(const config::checkpoint& fork_point,
     block_const_ptr_list_const_ptr incoming,
     block_const_ptr_list_ptr outgoing)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::reorganize() called";
+
     if (fork_point.height() > max_size_t - incoming->size())
         return error::operation_failed;
 
@@ -444,44 +708,116 @@ code data_base::reorganize(const config::checkpoint& fork_point,
 code data_base::push( block& block, size_t height,
     uint32_t median_time_past)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::push() called";
+
     // Critical Section
     ///////////////////////////////////////////////////////////////////////////
     unique_lock lock(write_mutex_);
 
     //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    if (!begin_write())
-        return error::store_lock_failure;
+    conditional_lock flushlock(flush_each_write(), &flush_lock_mutex_);
 
+    if (!begin_write())
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::push begin_write error::store_lock_failure";
+
+        return error::store_lock_failure;
+    }
+    
     // Store the header.
     blocks_->store(block.header(), height, median_time_past);
 
     // Push header reference onto the candidate index and set candidate state.
     if (!blocks_->index(block.hash(), height, true))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::push index candidate end_write error::store_lock_failure";
+        }
         return error::operation_failed;
+    }
 
     // Store any missing txs as unconfirmed, set tx link metadata for all.
     if (!transactions_->store(block.transactions()))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::push store end_write error::store_lock_failure";
+        }
         return error::operation_failed;
-
+    }
+    
     // Populate transaction references from link metadata.
     if (!blocks_->update(block))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::push update end_write error::store_lock_failure";
+        }
         return error::operation_failed;
+    }
 
     // Confirm all transactions (candidate state transition not requried).
     if (!transactions_->confirm(block.transactions(), height, median_time_past))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::push confirm end_write error::store_lock_failure";
+        }
         return error::operation_failed;
+    }
 
     // Promote validation state to valid (presumed valid).
     if (!blocks_->validate(block.hash(), error::success))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::push validate end_write error::store_lock_failure";
+        }
         return error::operation_failed;
-
+    }
+    
     // Push header reference onto the confirmed index and set confirmed state.
     if (!blocks_->index(block.hash(), height, false))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::push index confirmed end_write error::store_lock_failure";
+        }
         return error::operation_failed;
-
+    }
+    
     commit();
 
-    return end_write() ? error::success : error::store_lock_failure;
+    if (end_write())
+    {
+        return error::success;
+    }
+    else
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::push end_write error::store_lock_failure";
+        
+        return error::store_lock_failure;
+    }
     //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     ///////////////////////////////////////////////////////////////////////////
 }
@@ -493,6 +829,11 @@ code data_base::push( block& block, size_t height,
 bool data_base::push_all(header_const_ptr_list_const_ptr headers,
     const config::checkpoint& fork_point)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::push_all() called";
+
     code ec;
     const auto first_height = fork_point.height() + 1;
 
@@ -511,6 +852,11 @@ bool data_base::push_all(header_const_ptr_list_const_ptr headers,
 bool data_base::pop_above(header_const_ptr_list_ptr headers,
     const config::checkpoint& fork_point)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::pop_above() called";
+
     code ec;
     headers->clear();
     if ((ec = verify(*blocks_, fork_point, true)))
@@ -544,6 +890,11 @@ bool data_base::pop_above(header_const_ptr_list_ptr headers,
 code data_base::push_header( chain::header& header, size_t height,
     uint32_t median_time_past)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::push_header() called";
+
     code ec;
 
     // Critical Section
@@ -554,16 +905,35 @@ code data_base::push_header( chain::header& header, size_t height,
         return ec;
 
     //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    if (!begin_write())
-        return error::store_lock_failure;
+    conditional_lock flushlock(flush_each_write(), &flush_lock_mutex_);
 
+    if (!begin_write())
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::push_header begin_write error::store_lock_failure";
+
+        return error::store_lock_failure;
+    }
+    
     if (!header.metadata.exists)
         blocks_->store(header, height, median_time_past);
 
     blocks_->index(header.hash(), height, true);
     blocks_->commit();
 
-    return end_write() ? error::success : error::store_lock_failure;
+    if (end_write())
+    {
+        return error::success;
+    }
+    else
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::push_header end_write error::store_lock_failure";
+        
+        return error::store_lock_failure;
+    }
     //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     ///////////////////////////////////////////////////////////////////////////
 }
@@ -571,6 +941,11 @@ code data_base::push_header( chain::header& header, size_t height,
 // Expects header exists at the top of the candidate index.
 code data_base::pop_header(chain::header& out_header, size_t height)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::pop_header() called";
+
     code ec;
 
     // Critical Section
@@ -586,24 +961,59 @@ code data_base::pop_header(chain::header& out_header, size_t height)
         return error::operation_failed;
 
     //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    if (!begin_write())
-        return error::store_lock_failure;
+    conditional_lock flushlock(flush_each_write(), &flush_lock_mutex_);
 
+    if (!begin_write())
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::pop_header begin_write error::store_lock_failure";
+        
+        return error::store_lock_failure;
+    }
+    
     // Uncandidate previous outputs spent by txs of this candidate block.
     for (const auto link: result)
         if (!transactions_->uncandidate(link))
+        {
+            if (!end_write())
+            {
+                LOG_VERBOSE(LOG_DATABASE)
+                << this_id
+                << " data_base::pop_header uncandidate end_write error::store_lock_failure";
+            }
             return error::operation_failed;
-
+        }
+    
     // Unindex the candidate header.
     if (!blocks_->unindex(result.hash(), height, true))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::pop_header unindex end_write error::store_lock_failure";
+        }
         return error::operation_failed;
+    }
 
     // Commit everything that was changed and return header.
     blocks_->commit();
     out_header = result.header();
     BITCOIN_ASSERT(out_header.is_valid());
 
-    return end_write() ? error::success : error::store_lock_failure;
+    if (end_write())
+    {
+        return error::success;
+    }
+    else
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::pop_header end_write error::store_lock_failure";
+        
+        return error::store_lock_failure;
+    }
     //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     ///////////////////////////////////////////////////////////////////////////
 }
@@ -615,6 +1025,11 @@ code data_base::pop_header(chain::header& out_header, size_t height)
 bool data_base::push_all(block_const_ptr_list_const_ptr blocks,
     const config::checkpoint& fork_point)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::push_all() called";
+
     code ec;
     const auto first_height = fork_point.height() + 1;
 
@@ -632,6 +1047,11 @@ bool data_base::push_all(block_const_ptr_list_const_ptr blocks,
 bool data_base::pop_above(block_const_ptr_list_ptr blocks,
     const config::checkpoint& fork_point)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::pop_above() called";
+
     code ec;
     blocks->clear();
     if ((ec = verify(*blocks_, fork_point, false)))
@@ -662,6 +1082,11 @@ bool data_base::pop_above(block_const_ptr_list_ptr blocks,
 
 code data_base::push_block( block& block, size_t height)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::push_block() called";
+
     code ec;
     BITCOIN_ASSERT(block.header().metadata.state);
     auto median_time_past = block.header().metadata.state->median_time_past();
@@ -674,29 +1099,69 @@ code data_base::push_block( block& block, size_t height)
         return ec;
 
     //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+    conditional_lock flushlock(flush_each_write(), &flush_lock_mutex_);
+
     if (!begin_write())
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::push_block error::store_lock_failure";
+
         return error::store_lock_failure;
+    }
 
     // Confirm txs (and thereby also address indexes), spend prevouts.
     uint32_t position = 0;
     for (const auto& tx: block.transactions())
         if (!transactions_->confirm(tx.metadata.link, height, median_time_past,
             position++))
+        {
+            if (!end_write())
+            {
+                LOG_VERBOSE(LOG_DATABASE)
+                << this_id
+                << " data_base::push_block confirm end_write error::store_lock_failure";
+            }
             return error::operation_failed;
+        }
 
     // Confirm candidate block (candidate index unchanged).
     if (!blocks_->index(block.hash(), height, false))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::push_block index end_write error::store_lock_failure";
+        }
         return error::operation_failed;
-
+    }
+    
     commit();
 
-    return end_write() ? error::success : error::store_lock_failure;
+    if (end_write())
+    {
+        return error::success;
+    }
+    else
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::push_block end_write error::store_lock_failure";
+        
+        return error::store_lock_failure;
+    }
     //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     ///////////////////////////////////////////////////////////////////////////
 }
 
 code data_base::pop_block(chain::block& out_block, size_t height)
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::pop_block() called";
+
     code ec;
 
     // Critical Section
@@ -716,22 +1181,58 @@ code data_base::pop_block(chain::block& out_block, size_t height)
     BITCOIN_ASSERT(out_block.hash() == result.hash());
 
     //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    if (!begin_write())
-        return error::store_lock_failure;
+    conditional_lock flushlock(flush_each_write(), &flush_lock_mutex_);
 
+    if (!begin_write())
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::pop_block error::store_lock_failure";
+
+        return error::store_lock_failure;
+    }
+    
     // Deconfirm txs (and thereby also address indexes), unspend prevouts.
     for (const auto& tx: out_block.transactions())
         if (!transactions_->unconfirm(tx.metadata.link))
+        {
+            if (!end_write())
+            {
+                LOG_VERBOSE(LOG_DATABASE)
+                << this_id
+                << " data_base::pop_block unconfirm end_write error::store_lock_failure";
+            }
             return error::operation_failed;
-
+        }
+    
     // Unconfirm confirmed block (candidate index unchanged).
     if (!blocks_->unindex(result.hash(), height, false))
+    {
+        if (!end_write())
+        {
+            LOG_VERBOSE(LOG_DATABASE)
+            << this_id
+            << " data_base::pop_block unindex end_write error::store_lock_failure";
+        }
         return error::operation_failed;
-
+    }
+    
     commit();
 
     BITCOIN_ASSERT(out_block.is_valid());
-    return end_write() ? error::success : error::store_lock_failure;
+
+    if (end_write())
+    {
+        return error::success;
+    }
+    else
+    {
+        LOG_VERBOSE(LOG_DATABASE)
+        << this_id
+        << " data_base::pop_block end_write error::store_lock_failure";
+        
+        return error::store_lock_failure;
+    }
     //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     ///////////////////////////////////////////////////////////////////////////
 }
@@ -794,6 +1295,11 @@ code data_base::pop_block(chain::block& out_block, size_t height)
 // Private (assumes valid result links).
 transaction::list data_base::to_transactions(const block_result& result) const
 {
+    const auto this_id = boost::this_thread::get_id();
+    LOG_VERBOSE(LOG_DATABASE)
+    << this_id
+    << " data_base::to_transactions() called";
+
     transaction::list txs;
     txs.reserve(result.transaction_count());
 

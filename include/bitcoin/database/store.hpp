@@ -90,7 +90,8 @@ public:
 protected:
     // The implementation must flush all data to disk here.
     virtual bool flush() const = 0;
-
+    // flush_lock_mutex_ is used in conditional locks in derived classes, can't be private.
+    mutable shared_mutex flush_lock_mutex_;
 
 private:
     const path prefix_;

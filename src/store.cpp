@@ -121,12 +121,35 @@ bool store::close()
 
 bool store::begin_write() const
 {
-    return !flush_each_write() || flush_lock_.lock_shared();
+    if (flush_each_write())
+    {
+        return flush_lock_.lock_shared();
+    }
+    return true;
 }
 
 bool store::end_write() const
 {
-    return !flush_each_write() || (flush() && flush_lock_.unlock_shared());
+    if (flush_each_write())
+    {
+        if (flush())
+        {
+            // it's okay if flush lock file is deleted by another thread so ignore the return value
+            if (!flush_lock_.unlock_shared())
+            {
+                const auto this_id = boost::this_thread::get_id();
+                
+                LOG_VERBOSE(LOG_SYSTEM)
+                << this_id
+                << " flush_lock::unlock_shared() FALSE! FLUSH_LOCK FILE MISSING!";
+            }
+        }
+        else
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool store::flush_each_write() const
